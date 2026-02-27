@@ -24,17 +24,12 @@ const SOUND_MAP: Record<string, SoundConfig> = {
     'intro-speak': { src: `${BASE_PATH}prompt/IntroSpeak.mp3`, volume: 1.0 },
     'intro-voice': { src: `${BASE_PATH}prompt/IntroVoice.mp3`, volume: 1.0 },
     'voice-speaking': { src: `${BASE_PATH}prompt/Speak.mp3`, volume: 1.0 },
-    'intro-underlinechar': { src: `${BASE_PATH}prompt/IntroUnderlineChar.mp3`, volume: 1.0 },
-    'voice-g2-hoadao': { src: `${BASE_PATH}prompt/G2_HoaDao.mp3`, volume: 1.0 },
-    'voice-g2-hoadongtien': { src: `${BASE_PATH}prompt/G2_HoaDongTien.mp3`, volume: 1.0 },
-    'voice-g2-cayda': { src: `${BASE_PATH}prompt/G2_CayDa.mp3`, volume: 1.0 },
     'voice-rotate': { src: `${BASE_PATH}prompt/rotate.mp3`, volume: 1.0 },
 
     // ---- Line Prompts (trước khi ghi âm mỗi dòng) ----
     'begin-line2': { src: `${BASE_PATH}prompt/begin_line2.mp3`, volume: 1.0 },
     'begin-line3': { src: `${BASE_PATH}prompt/begin_line3.mp3`, volume: 1.0 },
     'begin-line4': { src: `${BASE_PATH}prompt/begin_line4.mp3`, volume: 1.0 },
-    'begin-line5': { src: `${BASE_PATH}prompt/begin_line5.mp3`, volume: 1.0 },
     'wait-grading': { src: `${BASE_PATH}prompt/wait_grading.mp3`, volume: 1.0 },
 
     // ---- Correct Answer Variations ----
