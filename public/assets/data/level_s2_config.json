@@ -1,0 +1,51 @@
+{
+  "balloons": {
+    "baseScale": 0.75,
+    "outlineKey": "balloon_line",
+    "baseX_pct": 0.60,
+    "baseY_pct": 0.48,
+    "parts": [
+      {
+        "key": "balloon_1",
+        "offsetX": -179,
+        "offsetY": -101.5,
+        "scale": 0.75,
+        "hintX": 0,
+        "hintY": 0
+      },
+      {
+        "key": "balloon_2",
+        "offsetX": -15,
+        "offsetY": 8.5,
+        "scale": 0.75,
+        "hintX": 0,
+        "hintY": 0
+      },
+      {
+        "key": "balloon_3",
+        "offsetX": 50,
+        "offsetY": -215.5,
+        "scale": 0.75,
+        "hintX": 0,
+        "hintY": 0
+      },
+      {
+        "key": "balloon_4",
+        "offsetX": 188,
+        "offsetY": -45,
+        "scale": 0.75,
+        "hintX": 0,
+        "hintY": 0
+      }
+    ]
+  },
+  "letter": {
+    "baseScale": 0.8,
+    "outlineKey": "o_outline",
+    "baseX_pct": 0.32,
+    "baseY_pct": 0.48,
+    "labelKey": "txt_balloon",
+    "labelOffsetY": 250,
+    "labelScale": 0.6
+  }
+}

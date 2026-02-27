@@ -1,0 +1,31 @@
+{
+  "dependencies": {
+    "@iruka-edu/game-core": "^0.3.0",
+    "@iruka-edu/mini-game-sdk": "^0.7.3",
+    "howler": "^2.2.4",
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "@types/howler": "^2.2.12",
+    "@types/node": "^25.3.0",
+    "prettier": "3.6.2",
+    "rollup-plugin-visualizer": "^7.0.0",
+    "terser": "^5.46.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.3.1"
+  },
+  "name": "o-balloon-game",
+  "description": "* Tạo cấu trúc:",
+  "homepage": ".",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "setup": "pnpm dlx dotenv-cli -- pnpm add @iruka-edu/game-core @iruka-edu/mini-game-sdk",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
