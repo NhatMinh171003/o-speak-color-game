@@ -12,6 +12,8 @@ const BASE_PATH = 'assets/audio/';
 
 // Ánh xạ ID âm thanh và cấu hình chi tiết
 const SOUND_MAP: Record<string, SoundConfig> = {
+    // ---- S2 Intro Voice ----
+    'voice_intro_s2': { src: `${BASE_PATH}prompt/instruction_s2.mp3`, volume: 1.0 },
 
     // ---- SFX Chung ----
     'sfx-correct': { src: `${BASE_PATH}sfx/correct_answer.mp3`, volume: 1.0 },

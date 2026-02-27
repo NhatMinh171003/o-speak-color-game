@@ -798,8 +798,8 @@ export default class SpeakScene extends SceneBase {
 
                 // Block loa trong khi phát prompt
                 this.isSpeaking = true;
-                // Dùng playAfterRecordingAsync để restore audio VÀ fade-in - tránh silent gap trên mobile thật
-                AudioManager.playAfterRecordingAsync(promptKey);
+                // Dùng playAfterRecording để fade-in mask HTML5 audio startup gap sau khi mic stop
+                AudioManager.play(promptKey);
 
                 // Reveal dòng tiếp và hiện bàn tay chỉ dẫn NGAY KHI audio bắt đầu phát
                 this.lineMasks.revealNextLine();
