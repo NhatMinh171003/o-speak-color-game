@@ -294,64 +294,38 @@ class AudioManager {
      * Safari reduces audio volume when microphone is active (ducking behavior).
      * Call this method after stopping recording to restore normal audio volume.
      */
-    /**
-     * Safari Audio Fix: Restore audio volume after microphone usage
-     * Safari reduces audio volume when microphone is active (ducking behavior).
-     * Call this method after stopping recording to restore normal audio volume.
-     * Sau khi gọi, nên phát sound sau một delay nhỏ để tránh silent gap.
-     * Có thể dùng playAfterRestore(key, delay).
-     */
-    restoreAudioAfterRecording(): Promise<void> {
-        return new Promise((resolve) => {
-            try {
-                // 1. Resume AudioContext nếu bị suspended
-                if (Howler.ctx && Howler.ctx.state === 'suspended') {
-                    console.log('[AudioManager] Safari/Android fix: Resuming AudioContext...');
-                    Howler.ctx.resume();
-                }
-
-                // 2. Reset global volume để force Safari/Android refresh audio routing
-                const currentVolume = Howler.volume();
-                Howler.volume(0);
-
-                // Small delay before restoring volume
-                setTimeout(() => {
-                    // Force volume về 1.0 cho cả Android/iOS
-                    Howler.volume(1.0);
-                    console.log('[AudioManager] Fix: Volume forced to 1.0');
-
-                    // 3. Play silent sound to "wake up" Safari audio
-                    const silentSound = new Howl({
-                        src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
-                        volume: 0.001, // Nearly silent
-                        html5: true,
-                    });
-                    silentSound.once('end', () => {
-                        silentSound.unload();
-                        // Thêm delay 150ms để tránh silent gap
-                        setTimeout(resolve, 150);
-                    });
-                    silentSound.play();
-                }, 50);
-            } catch (e) {
-                console.warn('[AudioManager] Safari/Android fix error:', e);
-                resolve();
+    restoreAudioAfterRecording(): void {
+        try {
+            // 1. Resume AudioContext nếu bị suspended
+            if (Howler.ctx && Howler.ctx.state === 'suspended') {
+                console.log('[AudioManager] Safari fix: Resuming AudioContext...');
+                Howler.ctx.resume();
             }
-        });
-    }
 
-    /**
-     * Phát sound sau khi restore audio, tự động delay để tránh silent gap.
-     * @param {string} key - sound id
-     * @param {number} delay - delay ms (default 0, sẽ tự delay nếu là Safari/iOS)
-     */
-    async playAfterRestore(key: string, delay: number = 0): Promise<number | undefined> {
-        await this.restoreAudioAfterRecording();
-        // Nếu delay truyền vào > 0 thì delay thêm
-        if (delay > 0) {
-            await new Promise(res => setTimeout(res, delay));
+            // 2. Reset global volume để force Safari refresh audio routing
+            const currentVolume = Howler.volume();
+            Howler.volume(0);
+
+            // Small delay before restoring volume
+            setTimeout(() => {
+                Howler.volume(currentVolume || 1.0);
+                console.log('[AudioManager] Safari fix: Volume restored to', currentVolume || 1.0);
+            }, 50);
+
+            // 3. Play silent sound to "wake up" Safari audio
+            const silentSound = new Howl({
+                src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
+                volume: 0.001, // Nearly silent
+                html5: true,
+            });
+            silentSound.once('end', () => {
+                silentSound.unload();
+            });
+            silentSound.play();
+
+        } catch (e) {
+            console.warn('[AudioManager] Safari fix error:', e);
         }
-        return this.play(key);
     }
 
     public getDuration(key: string): number {
