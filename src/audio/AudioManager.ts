@@ -398,12 +398,12 @@ class AudioManager {
             // 2. Delay để OS un-duck audio routing
             // Mobile thật cần delay DÀI HƠN so với emulator
             // Android cần nhiều thời gian hơn iOS
-            const recoverMs = isIOS ? 250 : (isAndroid ? 300 : 50);
+            const recoverMs = isIOS ? 120 : (isAndroid ? 150 : 30);
             console.log(`[AudioManager] restoreAudio: waiting ${recoverMs}ms for OS un-duck...`);
             await new Promise<void>(r => setTimeout(r, recoverMs));
 
             // 3. Silent kick để wake up audio pipeline
-            // Mobile thật có thể cần sound dài hơn để fully restore
+            // Dummy sound duration giảm cho mobile
             await new Promise<void>((resolve) => {
                 const silent = new Howl({
                     src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
@@ -419,12 +419,10 @@ class AudioManager {
                     resolve();
                 });
                 silent.play();
-
-                // Timeout fallback (silent sound quá ngắn có thể không trigger 'end')
                 setTimeout(() => {
                     silent.unload();
                     resolve();
-                }, 100);
+                }, isMobile ? 150 : 80);
             });
 
             // 4. Delay thêm cho mobile để hoàn toàn ổn định
