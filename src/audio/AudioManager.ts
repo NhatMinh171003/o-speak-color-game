@@ -294,35 +294,41 @@ class AudioManager {
      * Safari reduces audio volume when microphone is active (ducking behavior).
      * Call this method after stopping recording to restore normal audio volume.
      */
-    restoreAudioAfterRecording(): void {
+    /**
+     * Safari Audio Fix: Restore audio volume after microphone usage
+     * Trả về Promise, resolve sau khi silent sound kết thúc và delay nhỏ.
+     */
+    async restoreAudioAfterRecording(): Promise<void> {
         try {
             // 1. Resume AudioContext nếu bị suspended
             if (Howler.ctx && Howler.ctx.state === 'suspended') {
                 console.log('[AudioManager] Safari fix: Resuming AudioContext...');
-                Howler.ctx.resume();
+                await Howler.ctx.resume();
             }
 
             // 2. Reset global volume để force Safari refresh audio routing
             const currentVolume = Howler.volume();
             Howler.volume(0);
 
-            // Small delay before restoring volume
-            setTimeout(() => {
-                Howler.volume(currentVolume || 1.0);
-                console.log('[AudioManager] Safari fix: Volume restored to', currentVolume || 1.0);
-            }, 50);
+            // 3. Play silent sound to "wake up" Safari audio, resolve after end
+            await new Promise<void>((resolve) => {
+                setTimeout(() => {
+                    Howler.volume(currentVolume || 1.0);
+                    console.log('[AudioManager] Safari fix: Volume restored to', currentVolume || 1.0);
+                }, 50);
 
-            // 3. Play silent sound to "wake up" Safari audio
-            const silentSound = new Howl({
-                src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
-                volume: 0.001, // Nearly silent
-                html5: true,
+                const silentSound = new Howl({
+                    src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
+                    volume: 0.001, // Nearly silent
+                    html5: true,
+                });
+                silentSound.once('end', () => {
+                    silentSound.unload();
+                    // Thêm delay nhỏ để đảm bảo audio system ổn định
+                    setTimeout(resolve, 120);
+                });
+                silentSound.play();
             });
-            silentSound.once('end', () => {
-                silentSound.unload();
-            });
-            silentSound.play();
-
         } catch (e) {
             console.warn('[AudioManager] Safari fix error:', e);
         }

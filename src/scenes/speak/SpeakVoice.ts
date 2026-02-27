@@ -174,7 +174,7 @@ export class SpeakVoice {
 
         // Safari fix: Restore audio volume after recording
         // Safari có xu hướng giảm volume khi dùng microphone
-        AudioManager.restoreAudioAfterRecording();
+        await AudioManager.restoreAudioAfterRecording();
 
         // Trả về blob cho SpeakScene xử lý (gửi API async)
         this.callbacks.onRecordingComplete({
