@@ -175,7 +175,16 @@ class AudioManager {
         // Set volume về 0, play ngay, rồi fade lên full
         sound.volume(0);
         const soundId = sound.play();
+
+        // Log sound state để debug
+        console.log(`[AudioManager] playAfterRecording: soundId=${soundId}, state=${sound.state()}, playing=${sound.playing(soundId)}, ctxState=${Howler.ctx?.state}`);
+
         sound.fade(0, targetVolume, actualFadeMs, soundId);
+
+        // Listen for play errors
+        sound.once('playerror', (id, err) => {
+            console.error(`[AudioManager] playAfterRecording ERROR: ${id}`, err);
+        });
 
         // Safety fallback: nếu fade không hoạt động, đảm bảo volume được set sau fadeMs
         setTimeout(() => {
@@ -388,7 +397,8 @@ class AudioManager {
 
             // 2. Delay để OS un-duck audio routing
             // Mobile thật cần delay DÀI HƠN so với emulator
-            const recoverMs = isIOS ? 250 : (isAndroid ? 150 : 50);
+            // Android cần nhiều thời gian hơn iOS
+            const recoverMs = isIOS ? 250 : (isAndroid ? 300 : 50);
             console.log(`[AudioManager] restoreAudio: waiting ${recoverMs}ms for OS un-duck...`);
             await new Promise<void>(r => setTimeout(r, recoverMs));
 
