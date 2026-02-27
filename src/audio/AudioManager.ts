@@ -315,7 +315,7 @@ class AudioManager {
                 setTimeout(() => {
                     Howler.volume(currentVolume || 1.0);
                     console.log('[AudioManager] Safari fix: Volume restored to', currentVolume || 1.0);
-                }, 30);
+                }, 10);
 
                 const silentSound = new Howl({
                     src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
@@ -327,18 +327,18 @@ class AudioManager {
                     if (!resolved) {
                         resolved = true;
                         silentSound.unload();
-                        setTimeout(resolve, 60);
+                        setTimeout(resolve, 20);
                     }
                 });
                 silentSound.play();
-                // Timeout fallback: resolve nếu silent sound không phát xong sau 400ms
+                // Timeout fallback: resolve nếu silent sound không phát xong sau 200ms
                 setTimeout(() => {
                     if (!resolved) {
                         resolved = true;
                         console.warn('[AudioManager] restoreAudioAfterRecording: Timeout fallback resolving');
                         resolve();
                     }
-                }, 400);
+                }, 200);
             });
         } catch (e) {
             console.warn('[AudioManager] Safari fix error:', e);
