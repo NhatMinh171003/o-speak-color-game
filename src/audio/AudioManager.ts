@@ -306,18 +306,19 @@ class AudioManager {
             try {
                 // 1. Resume AudioContext nếu bị suspended
                 if (Howler.ctx && Howler.ctx.state === 'suspended') {
-                    console.log('[AudioManager] Safari fix: Resuming AudioContext...');
+                    console.log('[AudioManager] Safari/Android fix: Resuming AudioContext...');
                     Howler.ctx.resume();
                 }
 
-                // 2. Reset global volume để force Safari refresh audio routing
+                // 2. Reset global volume để force Safari/Android refresh audio routing
                 const currentVolume = Howler.volume();
                 Howler.volume(0);
 
                 // Small delay before restoring volume
                 setTimeout(() => {
-                    Howler.volume(currentVolume || 1.0);
-                    console.log('[AudioManager] Safari fix: Volume restored to', currentVolume || 1.0);
+                    // Force volume về 1.0 cho cả Android/iOS
+                    Howler.volume(1.0);
+                    console.log('[AudioManager] Fix: Volume forced to 1.0');
 
                     // 3. Play silent sound to "wake up" Safari audio
                     const silentSound = new Howl({
@@ -333,7 +334,7 @@ class AudioManager {
                     silentSound.play();
                 }, 50);
             } catch (e) {
-                console.warn('[AudioManager] Safari fix error:', e);
+                console.warn('[AudioManager] Safari/Android fix error:', e);
                 resolve();
             }
         });
