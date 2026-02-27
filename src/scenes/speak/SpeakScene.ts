@@ -807,7 +807,7 @@ export default class SpeakScene extends SceneBase {
                 console.log(`[SpeakScene] Revealed line ${this.lineMasks.currentLine + 1} simultaneously with prompt audio`);
 
                 // Hiện reading finger chỉ dọc dòng thơ trong khi prompt phát
-                this.readingFinger.startSingleLineAnimation(this.lineMasks.currentLine);
+                // this.readingFinger.startSingleLineAnimation(this.lineMasks.currentLine);
 
                 // Chờ audio prompt xong mới cho nhấn mic
                 const promptDuration = AudioManager.getDuration(promptKey) || 2;

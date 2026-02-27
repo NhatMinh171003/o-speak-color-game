@@ -14,6 +14,7 @@ const BASE_PATH = 'assets/audio/';
 const SOUND_MAP: Record<string, SoundConfig> = {
     // ---- S2 Intro Voice ----
     'voice_intro_s2': { src: `${BASE_PATH}prompt/instruction_s2.mp3`, volume: 1.0 },
+    'hint': { src: `${BASE_PATH}prompt/hint.mp3`, volume: 1.0 },
 
     // ---- SFX Chung ----
     'sfx-correct': { src: `${BASE_PATH}sfx/correct_answer.mp3`, volume: 1.0 },
@@ -319,7 +320,7 @@ class AudioManager {
 
                 const silentSound = new Howl({
                     src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
-                    volume: 0.001, // Nearly silent
+                    volume: 0.05, // Tăng volume để thử fix Android
                     html5: true,
                 });
                 let resolved = false;
@@ -327,6 +328,7 @@ class AudioManager {
                     if (!resolved) {
                         resolved = true;
                         silentSound.unload();
+                        Howler.volume(1.0); // Always call Howler.volume(1.0) after playing silent sound
                         setTimeout(resolve, 40);
                     }
                 });
