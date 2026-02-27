@@ -144,13 +144,22 @@ class AudioManager {
     /**
      * Play ngay sau khi ghi âm xong, có fade-in để mask HTML5 audio startup gap.
      * iOS suspend <audio> elements trong khi mic hoạt động → cần re-buffer khi play lại
-     * → sinh ra silent ~100ms ở đầu. Fade-in che cái gap này.
+     * → sinh ra silent ~100-200ms ở đầu trên mobile thật. Fade-in che cái gap này.
+     * 
+     * NOTE: Nên dùng playAfterRecordingAsync() để đảm bảo restore audio trước khi play.
      */
-    playAfterRecording(id: string, fadeInMs: number = 150): number | undefined {
+    playAfterRecording(id: string, fadeInMs: number = 300): number | undefined {
         if (!this.isLoaded || !this.sounds[id]) {
             console.warn(`[AudioManager] Sound ID not found: ${id}`);
             return;
         }
+
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+        const isMobile = isIOS || isAndroid;
+
+        // Mobile cần fade-in dài hơn để mask gap
+        const actualFadeMs = isMobile ? Math.max(fadeInMs, 350) : fadeInMs;
 
         // Ensure AudioContext is running before playing
         if (Howler.ctx && Howler.ctx.state === 'suspended') {
@@ -161,21 +170,33 @@ class AudioManager {
         const sound = this.sounds[id];
         const targetVolume = (sound as any)._volume ?? 1.0;
 
-        console.log(`[AudioManager] playAfterRecording: ${id}, targetVol=${targetVolume}, ctxState=${Howler.ctx?.state}`);
+        console.log(`[AudioManager] playAfterRecording: ${id}, targetVol=${targetVolume}, fadeMs=${actualFadeMs}, mobile=${isMobile}`);
 
         // Set volume về 0, play ngay, rồi fade lên full
         sound.volume(0);
         const soundId = sound.play();
-        sound.fade(0, targetVolume, fadeInMs, soundId);
+        sound.fade(0, targetVolume, actualFadeMs, soundId);
 
-        // Safety fallback: nếu fade không hoạt động, đảm bảo volume được set sau fadeInMs
+        // Safety fallback: nếu fade không hoạt động, đảm bảo volume được set sau fadeMs
         setTimeout(() => {
             if (sound.playing(soundId)) {
                 sound.volume(targetVolume, soundId);
             }
-        }, fadeInMs + 50);
+        }, actualFadeMs + 50);
 
         return soundId;
+    }
+
+    /**
+     * Play SAU khi ghi âm - ASYNC version.
+     * Đảm bảo restore audio pipeline TRƯỚC khi play để tránh silent gap trên mobile thật.
+     * Dùng khi có delay giữa recording stop và playback (ví dụ: chờ animation).
+     */
+    async playAfterRecordingAsync(id: string, fadeInMs: number = 300): Promise<number | undefined> {
+        // Restore audio pipeline TRƯỚC khi play
+        await this.restoreAudioAfterRecording();
+        // Sau đó play với fade-in
+        return this.playAfterRecording(id, fadeInMs);
     }
 
     /**
@@ -353,26 +374,53 @@ class AudioManager {
      */
     async restoreAudioAfterRecording(): Promise<void> {
         try {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isAndroid = /Android/.test(navigator.userAgent);
+            const isMobile = isIOS || isAndroid;
+
+            console.log(`[AudioManager] restoreAudio: starting... iOS=${isIOS}, Android=${isAndroid}`);
+
             // 1. Resume AudioContext nếu bị suspended
             if (Howler.ctx && Howler.ctx.state === 'suspended') {
                 await Howler.ctx.resume();
-                console.log('[AudioManager] restoreAudio: AudioContext resumed');
+                console.log('[AudioManager] restoreAudio: AudioContext resumed, state:', Howler.ctx.state);
             }
 
-            // 2. Delay tối thiểu để OS bắt đầu un-duck audio routing
-            // Không cần dài vì playAfterRecording() dùng fade-in để mask gap còn lại
-            const recoverMs = /iPad|iPhone|iPod/.test(navigator.userAgent) ? 80 : 30;
+            // 2. Delay để OS un-duck audio routing
+            // Mobile thật cần delay DÀI HƠN so với emulator
+            const recoverMs = isIOS ? 250 : (isAndroid ? 150 : 50);
+            console.log(`[AudioManager] restoreAudio: waiting ${recoverMs}ms for OS un-duck...`);
             await new Promise<void>(r => setTimeout(r, recoverMs));
 
-            // 3. Silent kick chạy nền để re-route audio pipeline (dùng Web Audio để tránh pool exhausted)
-            const silent = new Howl({
-                src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
-                volume: 0.001,
-                html5: false, // Web Audio - không tốn pool
+            // 3. Silent kick để wake up audio pipeline
+            // Mobile thật có thể cần sound dài hơn để fully restore
+            await new Promise<void>((resolve) => {
+                const silent = new Howl({
+                    src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
+                    volume: 0.01, // Cao hơn chút để ensure audio pipeline active
+                    html5: false, // Web Audio
+                });
+                silent.once('end', () => {
+                    silent.unload();
+                    resolve();
+                });
+                silent.once('playerror', () => {
+                    silent.unload();
+                    resolve();
+                });
+                silent.play();
+
+                // Timeout fallback (silent sound quá ngắn có thể không trigger 'end')
+                setTimeout(() => {
+                    silent.unload();
+                    resolve();
+                }, 100);
             });
-            silent.once('end', () => silent.unload());
-            silent.once('playerror', () => silent.unload());
-            silent.play();
+
+            // 4. Delay thêm cho mobile để hoàn toàn ổn định
+            if (isMobile) {
+                await new Promise<void>(r => setTimeout(r, 50));
+            }
 
             console.log('[AudioManager] restoreAudio: done');
         } catch (e) {
