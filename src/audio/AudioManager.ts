@@ -11,10 +11,9 @@ interface SoundConfig {
 const BASE_PATH = 'assets/audio/';
 
 // Ánh xạ ID âm thanh và cấu hình chi tiết
-// NOTE: html5:true CHỈ dùng cho sounds phát SAU recording để tránh pool exhausted
 const SOUND_MAP: Record<string, SoundConfig> = {
 
-    // ---- SFX Chung (Web Audio - mặc định) ----
+    // ---- SFX Chung ----
     'sfx-correct': { src: `${BASE_PATH}sfx/correct_answer.mp3`, volume: 1.0 },
     'sfx-correct_s2': { src: `${BASE_PATH}sfx/correct_color.mp3`, volume: 1.0 },
     'sfx-wrong': { src: `${BASE_PATH}sfx/wrong.mp3`, volume: 0.5 },
@@ -25,12 +24,17 @@ const SOUND_MAP: Record<string, SoundConfig> = {
     'intro-speak': { src: `${BASE_PATH}prompt/IntroSpeak.mp3`, volume: 1.0 },
     'intro-voice': { src: `${BASE_PATH}prompt/IntroVoice.mp3`, volume: 1.0 },
     'voice-speaking': { src: `${BASE_PATH}prompt/Speak.mp3`, volume: 1.0 },
+    'intro-underlinechar': { src: `${BASE_PATH}prompt/IntroUnderlineChar.mp3`, volume: 1.0 },
+    'voice-g2-hoadao': { src: `${BASE_PATH}prompt/G2_HoaDao.mp3`, volume: 1.0 },
+    'voice-g2-hoadongtien': { src: `${BASE_PATH}prompt/G2_HoaDongTien.mp3`, volume: 1.0 },
+    'voice-g2-cayda': { src: `${BASE_PATH}prompt/G2_CayDa.mp3`, volume: 1.0 },
     'voice-rotate': { src: `${BASE_PATH}prompt/rotate.mp3`, volume: 1.0 },
 
-    // ---- Line Prompts (phát SAU recording - dùng Web Audio với proper resume) ----
+    // ---- Line Prompts (trước khi ghi âm mỗi dòng) ----
     'begin-line2': { src: `${BASE_PATH}prompt/begin_line2.mp3`, volume: 1.0 },
     'begin-line3': { src: `${BASE_PATH}prompt/begin_line3.mp3`, volume: 1.0 },
     'begin-line4': { src: `${BASE_PATH}prompt/begin_line4.mp3`, volume: 1.0 },
+    'begin-line5': { src: `${BASE_PATH}prompt/begin_line5.mp3`, volume: 1.0 },
     'wait-grading': { src: `${BASE_PATH}prompt/wait_grading.mp3`, volume: 1.0 },
 
     // ---- Correct Answer Variations ----
@@ -76,10 +80,7 @@ class AudioManager {
             let loadedCount = 0;
             const total = keys.length;
 
-            if (total === 0) {
-                this.isLoaded = true;
-                return resolve();
-            }
+            if (total === 0) return resolve();
 
             keys.forEach((key) => {
                 const config = SOUND_MAP[key];
@@ -88,7 +89,7 @@ class AudioManager {
                     src: [config.src],
                     loop: config.loop || false,
                     volume: config.volume || 1.0,
-                    // Dùng Web Audio API (default) - tránh HTML5 pool exhausted
+                    html5: true, // Cần thiết cho iOS
 
                     onload: () => {
                         loadedCount++;
@@ -131,81 +132,7 @@ class AudioManager {
             );
             return;
         }
-
-        // Ensure AudioContext is running (có thể bị suspended sau khi dùng mic)
-        if (Howler.ctx && Howler.ctx.state === 'suspended') {
-            console.log('[AudioManager] play: Resuming suspended AudioContext');
-            Howler.ctx.resume();
-        }
-
         return this.sounds[id].play();
-    }
-
-    /**
-     * Play ngay sau khi ghi âm xong, có fade-in để mask HTML5 audio startup gap.
-     * iOS suspend <audio> elements trong khi mic hoạt động → cần re-buffer khi play lại
-     * → sinh ra silent ~100-200ms ở đầu trên mobile thật. Fade-in che cái gap này.
-     * 
-     * NOTE: Nên dùng playAfterRecordingAsync() để đảm bảo restore audio trước khi play.
-     */
-    playAfterRecording(id: string, fadeInMs: number = 300): number | undefined {
-        if (!this.isLoaded || !this.sounds[id]) {
-            console.warn(`[AudioManager] Sound ID not found: ${id}`);
-            return;
-        }
-
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const isAndroid = /Android/.test(navigator.userAgent);
-        const isMobile = isIOS || isAndroid;
-
-        // Mobile cần fade-in dài hơn để mask gap
-        const actualFadeMs = isMobile ? Math.max(fadeInMs, 350) : fadeInMs;
-
-        // Ensure AudioContext is running before playing
-        if (Howler.ctx && Howler.ctx.state === 'suspended') {
-            console.log('[AudioManager] playAfterRecording: Resuming suspended AudioContext');
-            Howler.ctx.resume();
-        }
-
-        const sound = this.sounds[id];
-        const targetVolume = (sound as any)._volume ?? 1.0;
-
-        console.log(`[AudioManager] playAfterRecording: ${id}, targetVol=${targetVolume}, fadeMs=${actualFadeMs}, mobile=${isMobile}`);
-
-        // Set volume về 0, play ngay, rồi fade lên full
-        sound.volume(0);
-        const soundId = sound.play();
-
-        // Log sound state để debug
-        console.log(`[AudioManager] playAfterRecording: soundId=${soundId}, state=${sound.state()}, playing=${sound.playing(soundId)}, ctxState=${Howler.ctx?.state}`);
-
-        sound.fade(0, targetVolume, actualFadeMs, soundId);
-
-        // Listen for play errors
-        sound.once('playerror', (id, err) => {
-            console.error(`[AudioManager] playAfterRecording ERROR: ${id}`, err);
-        });
-
-        // Safety fallback: nếu fade không hoạt động, đảm bảo volume được set sau fadeMs
-        setTimeout(() => {
-            if (sound.playing(soundId)) {
-                sound.volume(targetVolume, soundId);
-            }
-        }, actualFadeMs + 50);
-
-        return soundId;
-    }
-
-    /**
-     * Play SAU khi ghi âm - ASYNC version.
-     * Đảm bảo restore audio pipeline TRƯỚC khi play để tránh silent gap trên mobile thật.
-     * Dùng khi có delay giữa recording stop và playback (ví dụ: chờ animation).
-     */
-    async playAfterRecordingAsync(id: string, fadeInMs: number = 300): Promise<number | undefined> {
-        // Restore audio pipeline TRƯỚC khi play
-        await this.restoreAudioAfterRecording();
-        // Sau đó play với fade-in
-        return this.playAfterRecording(id, fadeInMs);
     }
 
     /**
@@ -329,38 +256,29 @@ class AudioManager {
             console.log('[AudioManager] unlockAudioAsync: Resuming suspended context...');
             try {
                 await Howler.ctx.resume();
-                console.log('[AudioManager] unlockAudioAsync: Context resumed, state:', Howler.ctx.state);
             } catch (e) {
                 console.warn('[AudioManager] unlockAudioAsync: Resume failed', e);
             }
         }
 
-        // Nếu context đã running thì không cần play dummy sound
-        if (Howler.ctx && Howler.ctx.state === 'running') {
-            console.log('[AudioManager] unlockAudioAsync: Context already running');
-            return;
-        }
-
-        // Fallback: phát silent sound để trigger unlock (cho Safari)
+        // Tạo và phát một silent sound để đảm bảo audio system hoạt động
         return new Promise((resolve) => {
             const dummySound = new Howl({
                 src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
-                volume: 0.001, // Không hoàn toàn 0 để trigger audio pipeline
+                volume: 0,
                 html5: false, // Web Audio API
                 onplay: () => {
                     dummySound.stop();
-                    dummySound.unload();
                     console.log('[AudioManager] unlockAudioAsync: Audio unlocked successfully');
+                    // Thêm delay nhỏ để đảm bảo audio system ổn định
                     setTimeout(resolve, 50);
                 },
                 onloaderror: () => {
                     console.warn('[AudioManager] unlockAudioAsync: Dummy sound load error');
-                    dummySound.unload();
                     resolve();
                 },
                 onplayerror: () => {
                     console.warn('[AudioManager] unlockAudioAsync: Dummy sound play error');
-                    dummySound.unload();
                     resolve();
                 }
             });
@@ -375,64 +293,41 @@ class AudioManager {
     }
 
     /**
-     * Mobile/Safari Fix: Restore audio after microphone usage.
-     * Mobile browsers duck (reduce) audio output when mic is active.
-     * Must be AWAITED before playing any sound after recording stops.
-     * 
-     * Flow: resume AudioContext → wait for OS duck recovery → silent kick → done
+     * Safari Audio Fix: Restore audio volume after microphone usage
+     * Safari reduces audio volume when microphone is active (ducking behavior).
+     * Call this method after stopping recording to restore normal audio volume.
      */
-    async restoreAudioAfterRecording(): Promise<void> {
+    restoreAudioAfterRecording(): void {
         try {
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-            const isAndroid = /Android/.test(navigator.userAgent);
-            const isMobile = isIOS || isAndroid;
-
-            console.log(`[AudioManager] restoreAudio: starting... iOS=${isIOS}, Android=${isAndroid}`);
-
             // 1. Resume AudioContext nếu bị suspended
             if (Howler.ctx && Howler.ctx.state === 'suspended') {
-                await Howler.ctx.resume();
-                console.log('[AudioManager] restoreAudio: AudioContext resumed, state:', Howler.ctx.state);
+                console.log('[AudioManager] Safari fix: Resuming AudioContext...');
+                Howler.ctx.resume();
             }
 
-            // 2. Delay để OS un-duck audio routing
-            // Mobile thật cần delay DÀI HƠN so với emulator
-            // Android cần nhiều thời gian hơn iOS
-            const recoverMs = isIOS ? 120 : (isAndroid ? 150 : 30);
-            console.log(`[AudioManager] restoreAudio: waiting ${recoverMs}ms for OS un-duck...`);
-            await new Promise<void>(r => setTimeout(r, recoverMs));
+            // 2. Reset global volume để force Safari refresh audio routing
+            const currentVolume = Howler.volume();
+            Howler.volume(0);
 
-            // 3. Silent kick để wake up audio pipeline
-            // Dummy sound duration giảm cho mobile
-            await new Promise<void>((resolve) => {
-                const silent = new Howl({
-                    src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
-                    volume: 0.01, // Cao hơn chút để ensure audio pipeline active
-                    html5: false, // Web Audio
-                });
-                silent.once('end', () => {
-                    silent.unload();
-                    resolve();
-                });
-                silent.once('playerror', () => {
-                    silent.unload();
-                    resolve();
-                });
-                silent.play();
-                setTimeout(() => {
-                    silent.unload();
-                    resolve();
-                }, isMobile ? 150 : 80);
+            // Small delay before restoring volume
+            setTimeout(() => {
+                Howler.volume(currentVolume || 1.0);
+                console.log('[AudioManager] Safari fix: Volume restored to', currentVolume || 1.0);
+            }, 50);
+
+            // 3. Play silent sound to "wake up" Safari audio
+            const silentSound = new Howl({
+                src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
+                volume: 0.001, // Nearly silent
+                html5: true,
             });
+            silentSound.once('end', () => {
+                silentSound.unload();
+            });
+            silentSound.play();
 
-            // 4. Delay thêm cho mobile để hoàn toàn ổn định
-            if (isMobile) {
-                await new Promise<void>(r => setTimeout(r, 50));
-            }
-
-            console.log('[AudioManager] restoreAudio: done');
         } catch (e) {
-            console.warn('[AudioManager] restoreAudio error:', e);
+            console.warn('[AudioManager] Safari fix error:', e);
         }
     }
 

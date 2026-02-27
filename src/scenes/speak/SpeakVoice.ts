@@ -172,9 +172,9 @@ export class SpeakVoice {
 
         console.log(`[SpeakVoice] Line ${this.currentLineIndex + 1} recording complete, size: ${audioBlob.size}, duration: ${durationMs}ms`);
 
-        // Safari/Mobile fix: AWAIT restore audio trước khi gọi callback
-        // Không await → callback chạy ngay → sound tiếp theo phát trong khi audio vẫn ducked → silent gap
-        await AudioManager.restoreAudioAfterRecording();
+        // Safari fix: Restore audio volume after recording
+        // Safari có xu hướng giảm volume khi dùng microphone
+        AudioManager.restoreAudioAfterRecording();
 
         // Trả về blob cho SpeakScene xử lý (gửi API async)
         this.callbacks.onRecordingComplete({
