@@ -11,9 +11,10 @@ interface SoundConfig {
 const BASE_PATH = 'assets/audio/';
 
 // Ánh xạ ID âm thanh và cấu hình chi tiết
+// NOTE: html5:true CHỈ dùng cho sounds phát SAU recording để tránh pool exhausted
 const SOUND_MAP: Record<string, SoundConfig> = {
 
-    // ---- SFX Chung ----
+    // ---- SFX Chung (Web Audio - mặc định) ----
     'sfx-correct': { src: `${BASE_PATH}sfx/correct_answer.mp3`, volume: 1.0 },
     'sfx-correct_s2': { src: `${BASE_PATH}sfx/correct_color.mp3`, volume: 1.0 },
     'sfx-wrong': { src: `${BASE_PATH}sfx/wrong.mp3`, volume: 0.5 },
@@ -24,18 +25,12 @@ const SOUND_MAP: Record<string, SoundConfig> = {
     'intro-speak': { src: `${BASE_PATH}prompt/IntroSpeak.mp3`, volume: 1.0 },
     'intro-voice': { src: `${BASE_PATH}prompt/IntroVoice.mp3`, volume: 1.0 },
     'voice-speaking': { src: `${BASE_PATH}prompt/Speak.mp3`, volume: 1.0 },
-    'intro-underlinechar': { src: `${BASE_PATH}prompt/IntroUnderlineChar.mp3`, volume: 1.0 },
-    'voice-g2-hoadao': { src: `${BASE_PATH}prompt/G2_HoaDao.mp3`, volume: 1.0 },
-    'voice-g2-hoadongtien': { src: `${BASE_PATH}prompt/G2_HoaDongTien.mp3`, volume: 1.0 },
-    'voice-g2-cayda': { src: `${BASE_PATH}prompt/G2_CayDa.mp3`, volume: 1.0 },
     'voice-rotate': { src: `${BASE_PATH}prompt/rotate.mp3`, volume: 1.0 },
 
-    // ---- Line Prompts (trước khi ghi âm mỗi dòng) ----
+    // ---- Line Prompts (phát SAU recording - dùng Web Audio với proper resume) ----
     'begin-line2': { src: `${BASE_PATH}prompt/begin_line2.mp3`, volume: 1.0 },
     'begin-line3': { src: `${BASE_PATH}prompt/begin_line3.mp3`, volume: 1.0 },
     'begin-line4': { src: `${BASE_PATH}prompt/begin_line4.mp3`, volume: 1.0 },
-    'begin-line5': { src: `${BASE_PATH}prompt/begin_line5.mp3`, volume: 1.0 },
-    'begin-line6': { src: `${BASE_PATH}prompt/begin_line6.mp3`, volume: 1.0 },
     'wait-grading': { src: `${BASE_PATH}prompt/wait_grading.mp3`, volume: 1.0 },
 
     // ---- Correct Answer Variations ----
@@ -81,7 +76,10 @@ class AudioManager {
             let loadedCount = 0;
             const total = keys.length;
 
-            if (total === 0) return resolve();
+            if (total === 0) {
+                this.isLoaded = true;
+                return resolve();
+            }
 
             keys.forEach((key) => {
                 const config = SOUND_MAP[key];
@@ -90,7 +88,7 @@ class AudioManager {
                     src: [config.src],
                     loop: config.loop || false,
                     volume: config.volume || 1.0,
-                    html5: true, // Cần thiết cho iOS
+                    // Dùng Web Audio API (default) - tránh HTML5 pool exhausted
 
                     onload: () => {
                         loadedCount++;
@@ -133,6 +131,13 @@ class AudioManager {
             );
             return;
         }
+
+        // Ensure AudioContext is running (có thể bị suspended sau khi dùng mic)
+        if (Howler.ctx && Howler.ctx.state === 'suspended') {
+            console.log('[AudioManager] play: Resuming suspended AudioContext');
+            Howler.ctx.resume();
+        }
+
         return this.sounds[id].play();
     }
 
@@ -146,13 +151,30 @@ class AudioManager {
             console.warn(`[AudioManager] Sound ID not found: ${id}`);
             return;
         }
+
+        // Ensure AudioContext is running before playing
+        if (Howler.ctx && Howler.ctx.state === 'suspended') {
+            console.log('[AudioManager] playAfterRecording: Resuming suspended AudioContext');
+            Howler.ctx.resume();
+        }
+
         const sound = this.sounds[id];
         const targetVolume = (sound as any)._volume ?? 1.0;
+
+        console.log(`[AudioManager] playAfterRecording: ${id}, targetVol=${targetVolume}, ctxState=${Howler.ctx?.state}`);
 
         // Set volume về 0, play ngay, rồi fade lên full
         sound.volume(0);
         const soundId = sound.play();
         sound.fade(0, targetVolume, fadeInMs, soundId);
+
+        // Safety fallback: nếu fade không hoạt động, đảm bảo volume được set sau fadeInMs
+        setTimeout(() => {
+            if (sound.playing(soundId)) {
+                sound.volume(targetVolume, soundId);
+            }
+        }, fadeInMs + 50);
+
         return soundId;
     }
 
@@ -277,29 +299,38 @@ class AudioManager {
             console.log('[AudioManager] unlockAudioAsync: Resuming suspended context...');
             try {
                 await Howler.ctx.resume();
+                console.log('[AudioManager] unlockAudioAsync: Context resumed, state:', Howler.ctx.state);
             } catch (e) {
                 console.warn('[AudioManager] unlockAudioAsync: Resume failed', e);
             }
         }
 
-        // Tạo và phát một silent sound để đảm bảo audio system hoạt động
+        // Nếu context đã running thì không cần play dummy sound
+        if (Howler.ctx && Howler.ctx.state === 'running') {
+            console.log('[AudioManager] unlockAudioAsync: Context already running');
+            return;
+        }
+
+        // Fallback: phát silent sound để trigger unlock (cho Safari)
         return new Promise((resolve) => {
             const dummySound = new Howl({
                 src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
-                volume: 0,
+                volume: 0.001, // Không hoàn toàn 0 để trigger audio pipeline
                 html5: false, // Web Audio API
                 onplay: () => {
                     dummySound.stop();
+                    dummySound.unload();
                     console.log('[AudioManager] unlockAudioAsync: Audio unlocked successfully');
-                    // Thêm delay nhỏ để đảm bảo audio system ổn định
                     setTimeout(resolve, 50);
                 },
                 onloaderror: () => {
                     console.warn('[AudioManager] unlockAudioAsync: Dummy sound load error');
+                    dummySound.unload();
                     resolve();
                 },
                 onplayerror: () => {
                     console.warn('[AudioManager] unlockAudioAsync: Dummy sound play error');
+                    dummySound.unload();
                     resolve();
                 }
             });
@@ -333,11 +364,11 @@ class AudioManager {
             const recoverMs = /iPad|iPhone|iPod/.test(navigator.userAgent) ? 80 : 30;
             await new Promise<void>(r => setTimeout(r, recoverMs));
 
-            // 3. Silent kick chạy nền để re-route audio pipeline
+            // 3. Silent kick chạy nền để re-route audio pipeline (dùng Web Audio để tránh pool exhausted)
             const silent = new Howl({
                 src: ['data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAAAA=='],
                 volume: 0.001,
-                html5: true,
+                html5: false, // Web Audio - không tốn pool
             });
             silent.once('end', () => silent.unload());
             silent.once('playerror', () => silent.unload());
