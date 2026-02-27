@@ -322,12 +322,23 @@ class AudioManager {
                     volume: 0.001, // Nearly silent
                     html5: true,
                 });
+                let resolved = false;
                 silentSound.once('end', () => {
-                    silentSound.unload();
-                    // Thêm delay nhỏ để đảm bảo audio system ổn định
-                    setTimeout(resolve, 120);
+                    if (!resolved) {
+                        resolved = true;
+                        silentSound.unload();
+                        setTimeout(resolve, 120);
+                    }
                 });
                 silentSound.play();
+                // Timeout fallback: resolve nếu silent sound không phát xong sau 800ms
+                setTimeout(() => {
+                    if (!resolved) {
+                        resolved = true;
+                        console.warn('[AudioManager] restoreAudioAfterRecording: Timeout fallback resolving');
+                        resolve();
+                    }
+                }, 800);
             });
         } catch (e) {
             console.warn('[AudioManager] Safari fix error:', e);
